@@ -16,6 +16,7 @@
 package com.tngtech.archunit.core.importer;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -152,7 +153,7 @@ class ClassGraphCreator implements ImportContext {
         for (JavaClass javaClass : classes.getAll().values()) {
             DomainObjectCreationContext.completeAnnotations(javaClass, this);
             for (JavaMember member : concat(javaClass.getFields(), javaClass.getMethods(), javaClass.getConstructors())) {
-                memberDependenciesByTarget.registerAnnotations(member.getAnnotations());
+                resolveAndCompleteMemberAnnotations(member);
             }
         }
     }
@@ -172,6 +173,26 @@ class ClassGraphCreator implements ImportContext {
             resolveAnnotations(metaAnnotation);
         }
     }
+
+    private void resolveAndCompleteMemberAnnotations(JavaMember member) {
+        memberDependenciesByTarget.registerAnnotations(member.getAnnotations());
+        Set<String> resolvedAnnotations = new HashSet<>();
+        for (JavaAnnotation<? extends JavaMember> annotation : member.getAnnotations()) {
+            resolveMemberAnnotations(annotation, resolvedAnnotations);
+        }
+    }
+
+    private void resolveMemberAnnotations(JavaAnnotation<?> annotation, Set<String> resolvedAnnotations) {
+        DomainObjectCreationContext.completeAnnotations(annotation.getRawType(), this);
+        resolvedAnnotations.add(annotation.getRawType().getName());
+        for (JavaAnnotation<JavaClass> metaAnnotation : annotation.getRawType().getAnnotations()) {
+            if (resolvedAnnotations.contains(metaAnnotation.getRawType().getName())) {
+                break;
+            }
+            resolveMemberAnnotations(metaAnnotation, resolvedAnnotations);
+        }
+    }
+
 
     private <T extends AccessRecord<?>, B extends RawAccessRecord> void tryProcess(
             B rawRecord,
