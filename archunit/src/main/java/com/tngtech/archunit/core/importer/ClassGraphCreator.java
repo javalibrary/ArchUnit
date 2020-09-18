@@ -46,6 +46,7 @@ import com.tngtech.archunit.core.domain.JavaMethodCall;
 import com.tngtech.archunit.core.domain.JavaStaticInitializer;
 import com.tngtech.archunit.core.domain.ThrowsDeclaration;
 import com.tngtech.archunit.core.importer.AccessRecord.FieldAccessRecord;
+import com.tngtech.archunit.core.importer.DomainBuilders.JavaAnnotationBuilder;
 import com.tngtech.archunit.core.importer.DomainBuilders.JavaConstructorCallBuilder;
 import com.tngtech.archunit.core.importer.DomainBuilders.JavaFieldAccessBuilder;
 import com.tngtech.archunit.core.importer.DomainBuilders.JavaMethodCallBuilder;
@@ -147,11 +148,28 @@ class ClassGraphCreator implements ImportContext {
     }
 
     private void completeAnnotations() {
+        ensureAnnotationsHierarchy();
         for (JavaClass javaClass : classes.getAll().values()) {
             DomainObjectCreationContext.completeAnnotations(javaClass, this);
             for (JavaMember member : concat(javaClass.getFields(), javaClass.getMethods(), javaClass.getConstructors())) {
                 memberDependenciesByTarget.registerAnnotations(member.getAnnotations());
             }
+        }
+    }
+
+    private void ensureAnnotationsHierarchy() {
+        for (JavaAnnotationBuilder annotation : ImmutableSet.copyOf(importRecord.getAnnotationsByOwnerClass().values())) {
+            resolveAnnotations(annotation);
+        }
+    }
+
+    private void resolveAnnotations(JavaAnnotationBuilder annotation) {
+        JavaClass javaClassOfAnnotation = classes.getOrResolve(annotation.getJavaType().getName());
+        for (JavaAnnotationBuilder metaAnnotation : importRecord.getAnnotationsFor(javaClassOfAnnotation.getName())) {
+            if (classes.getAll().containsKey(metaAnnotation.getJavaType().getName())) {
+                break;
+            }
+            resolveAnnotations(metaAnnotation);
         }
     }
 
